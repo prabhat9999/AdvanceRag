@@ -10,17 +10,17 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-class GardeAnswer(BaseModel):
+class GradeAnswer(BaseModel):
     """Binary score for answer correctness."""
 
-    binary_score: str = Field(
-        description="Yes if the answer is correct; otherwise No."
+    binary_score: bool = Field(
+        description="True if the answer addresses the question; otherwise False."
     )
 
-structured_llm_grader = llm.with_structured_output(GardeAnswer)
+structured_llm_grader = llm.with_structured_output(GradeAnswer)
 
 system="""You are a grader assessing whether an LLM generation is correct or not. \n
-     Give a binary score 'yes' or 'no'. 'Yes' means that the answer is correct; otherwise 'no'."""
+     Give a binary score True or False. True means that the answer is correct; otherwise False."""
 answer_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system),

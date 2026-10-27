@@ -33,7 +33,7 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
             ),
         )
         grade = score.binary_score
-        if grade.lower() == "yes":
+        if grade is True:
             print("---GRADE: DOCUMENT RELEVANT---")
             filtered_docs.append(d)
         else:
