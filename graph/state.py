@@ -1,18 +1,13 @@
+from typing import NotRequired, TypedDict
 
-from typing import TypedDict, NotRequired
 from langchain_core.documents import Document
 
-class GraphState(TypedDict):
-    """
-    Represents the state of our graph.
 
-    Attributes:
-        question: User question
-        generation: LLM-generated answer
-        web_search: Whether web search is needed
-        documents: List of retrieved documents
-    """
+class GraphState(TypedDict):
+    """Data passed between graph nodes."""
+
     question: str
     generation: NotRequired[str]
     web_search: NotRequired[bool]
     documents: NotRequired[list[Document]]
+    generation_attempts: NotRequired[int]

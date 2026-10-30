@@ -1,63 +1,92 @@
-from dotenv import load_dotenv
+from typing import Literal
 
 from langgraph.graph import END, StateGraph
+
 from graph.chains.answer_grader_chain import answer_grader
 from graph.chains.hallucination_grader_chain import hallucination_grader
-from graph.consts import RETRIEVE, GRADE_DOCUMENTS, GENERATE, WEBSEARCH
+from graph.chains.router_chain import RouteQuery, question_router
+from graph.consts import GENERATE, GRADE_DOCUMENTS, RETRIEVE, WEBSEARCH
 from graph.nodes import generate, grade_documents, retrieve, web_search
+from graph.routing import decide_to_generate
 from graph.state import GraphState
-from graph.chains.router_chain import question_router, RouteQuery
 
-def grade_generation_grounded_in_documents_and_question(state: GraphState) -> str:
-    print("---CHECK HALLUCINATIONS---")
+
+def grade_generation_grounded_in_documents_and_question(
+    state: GraphState,
+) -> Literal["useful", "not useful", "not supported"]:
+    """Check whether the answer is grounded and addresses the question."""
+
+    if "documents" not in state:
+        raise ValueError(
+            "Documents must be present before grading the generated answer."
+        )
+
+    if "generation" not in state:
+        raise ValueError(
+            "A generated answer must be present before answer grading."
+        )
+
     question = state["question"]
     documents = state["documents"]
     generation = state["generation"]
 
-    score = hallucination_grader.invoke(
-        {"documents": documents, "generation": generation}
+    print("---CHECK HALLUCINATIONS---")
+
+    grounding_score = hallucination_grader.invoke(
+        {
+            "documents": documents,
+            "generation": generation,
+        }
     )
 
-    if score.binary_score is True:
-        print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-        print("---GRADE GENERATION vs QUESTION---")
-        score = answer_grader.invoke({"question": question, "generation": generation})
-        if score.binary_score is True:
-            print("---DECISION: GENERATION ADDRESSES QUESTION---")
-            return "useful"
-        else:
-            print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-            return "not useful"
-    else:
-        print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+    if grounding_score.binary_score is not True:
+        print("---DECISION: GENERATION IS NOT GROUNDED---")
         return "not supported"
 
-def route_question(state: GraphState) -> str:
+    print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+    print("---GRADE GENERATION vs QUESTION---")
+
+    answer_score = answer_grader.invoke(
+        {
+            "question": question,
+            "generation": generation,
+        }
+    )
+
+    if answer_score.binary_score is True:
+        print("---DECISION: GENERATION ADDRESSES QUESTION---")
+        return "useful"
+
+    print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+    return "not useful"
+
+
+def route_question(
+    state: GraphState,
+) -> Literal["websearch", "retrieve"]:
+    """Choose public web search or document retrieval."""
+
     print("---ROUTE QUESTION---")
-    question = state["question"]
-    source: RouteQuery = question_router.invoke({"question": question})
-    if source.datasource == WEBSEARCH:
+
+    source: RouteQuery = question_router.invoke(
+        {"question": state["question"]}
+    )
+
+    if source.datasource == "websearch":
         print("---ROUTE QUESTION TO WEB SEARCH---")
-        return WEBSEARCH
-    elif source.datasource == "vectorstore":
+        return "websearch"
+
+    if source.datasource == "vectorstore":
         print("---ROUTE QUESTION TO RAG---")
-        return RETRIEVE
+        return "retrieve"
 
-def decide_to_generate(state):
-    print("---ASSESS GRADED DOCUMENTS---")
-
-    if state["web_search"]:
-        print(
-            "---DECISION: NOT ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, INCLUDE WEB SEARCH---"
-        )
-        return WEBSEARCH
-    else:
-        print("---DECISION: GENERATE---")
-        return GENERATE
-
+    raise ValueError(
+        f"Unsupported routing destination: {source.datasource!r}"
+    )
 
 
 workflow = StateGraph(GraphState)
+
 workflow.add_node(RETRIEVE, retrieve)
 workflow.add_node(GRADE_DOCUMENTS, grade_documents)
 workflow.add_node(GENERATE, generate)
@@ -70,7 +99,9 @@ workflow.set_conditional_entry_point(
         RETRIEVE: RETRIEVE,
     },
 )
+
 workflow.add_edge(RETRIEVE, GRADE_DOCUMENTS)
+
 workflow.add_conditional_edges(
     GRADE_DOCUMENTS,
     decide_to_generate,
@@ -79,15 +110,17 @@ workflow.add_conditional_edges(
         GENERATE: GENERATE,
     },
 )
+
 workflow.add_edge(WEBSEARCH, GENERATE)
-workflow.add_conditional_edges(GENERATE,grade_generation_grounded_in_documents_and_question,path_map=
-{
-    "useful":END,
-    "not useful":RETRIEVE,
-    "not supported":RETRIEVE
-}
+
+workflow.add_conditional_edges(
+    GENERATE,
+    grade_generation_grounded_in_documents_and_question,
+    {
+        "useful": END,
+        "not useful": RETRIEVE,
+        "not supported": RETRIEVE,
+    },
 )
 
 app = workflow.compile()
-
-app.get_graph().draw_mermaid_png(output_file_path="graph.png")

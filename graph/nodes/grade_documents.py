@@ -5,23 +5,14 @@ from graph.state import GraphState
 
 
 def grade_documents(state: GraphState) -> Dict[str, Any]:
-    """
-    Determines whether the retrieved documents are relevant to the question
-    If any document is not relevant, we will set a flag to run web search
-
-    Args:
-        state (dict): The current graph state
-
-    Returns:
-        state (dict): Filtered out irrelevant documents and updated web_search state
-    """
+    """Keep relevant documents and request web search if none remain."""
 
     print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
     question = state["question"]
-    documents = state["documents"]
+    documents = state.get("documents", [])
 
     filtered_docs = []
-    web_search = False
+
     for d in documents:
         score = cast(
             GradeDocuments,
@@ -32,12 +23,17 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
                 }
             ),
         )
-        grade = score.binary_score
-        if grade is True:
+
+        if score.binary_score is True:
             print("---GRADE: DOCUMENT RELEVANT---")
             filtered_docs.append(d)
         else:
             print("---GRADE: DOCUMENT NOT RELEVANT---")
-            web_search = True
-            continue
-    return {"documents": filtered_docs, "question": question, "web_search": web_search}
+
+    web_search = len(filtered_docs) == 0
+
+    return {
+        "documents": filtered_docs,
+        "question": question,
+        "web_search": web_search,
+    }
