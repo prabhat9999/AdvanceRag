@@ -1,18 +1,29 @@
-name: Tests
+# Display name for the whole workflow in GitHub's Actions tab.
+name: AdvanceRag Checks
 
+# Events that start this workflow.
 on:
   push:
   pull_request:
 
+# Permissions given to the workflow's GitHub token.
 permissions:
   contents: read
 
+# Groups of work GitHub should execute.
 jobs:
+  # An identifier we choose for this job.
   tests:
+    # Display name for this job.
     name: Python tests
+
+    # Type of machine GitHub provides.
     runs-on: ubuntu-latest
+
+    # Stop the job if it takes longer than 15 minutes.
     timeout-minutes: 15
 
+    # Tasks within this job, executed in order.
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
