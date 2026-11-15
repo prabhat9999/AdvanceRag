@@ -1,10 +1,32 @@
+import argparse
+
 from dotenv import load_dotenv
 
 from config import validate_environment
 
 
-def main():
-    # Load local settings before checking required values.
+def parse_args(argv=None):
+    """Read and validate command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Ask a question using the AdvanceRag workflow."
+    )
+
+    parser.add_argument(
+        "question",
+        help="The question you want answered. Use quotes around it.",
+    )
+
+    args = parser.parse_args(argv)
+
+    if not args.question.strip():
+        parser.error("question must not be empty")
+
+    return args
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
     load_dotenv()
 
     try:
@@ -14,13 +36,12 @@ def main():
     except ValueError as exc:
         raise SystemExit(f"Configuration error: {exc}") from None
 
-    # Import the graph after configuration passes validation.
     from graph.graph import app
 
     print("Advanced RAG")
 
     result = app.invoke(
-        input={"question": "What is pizza?"}
+        input={"question": args.question.strip()}
     )
 
     print("Final Output:", result["generation"])

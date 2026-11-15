@@ -100,3 +100,24 @@ test suite on pushes and pull requests.
 - The entry point uses a fixed example question.
 - Answer quality has not yet been measured against a fixed evaluation dataset.
 - LLM-based grading is a useful check, but does not guarantee correctness.
+
+
+
+## Run the application
+
+Pass your question in quotes:
+
+```bash
+uv run python main.py "What is agent memory?"
+```
+
+For questions about the source articles, ingest the documents first.
+
+To view command-line help:
+
+```bash
+uv run python main.py --help
+```
+
+Running a question calls external APIs and can incur usage costs.
+Displaying help does not call external APIs.
