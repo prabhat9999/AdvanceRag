@@ -29,6 +29,8 @@ def test_grader_client_is_created_on_demand_and_reused(monkeypatch):
         fake_constructor.assert_called_once_with(
             model="gpt-4o-mini",
             temperature=0,
+            timeout=30.0,
+            max_retries=1,
         )
         assert first is second
     finally:

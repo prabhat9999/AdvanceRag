@@ -27,6 +27,8 @@ def get_retrieval_grader() -> RunnableSequence:
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
+        timeout=30.0,
+        max_retries=1,
     )
 
     structured_llm_grader = llm.with_structured_output(

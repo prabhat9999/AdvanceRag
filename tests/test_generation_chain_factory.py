@@ -45,6 +45,8 @@ def test_generation_chain_builds_once_and_handles_each_request(
         fake_constructor.assert_called_once_with(
             model="gpt-4o-mini",
             temperature=0,
+            timeout=30.0,
+            max_retries=1,
         )
 
         # Both requests still reach the model.

@@ -150,3 +150,36 @@ def test_model_timeout_exits_cleanly(
     )
 
     assert "Final Output:" not in capsys.readouterr().out
+
+
+def test_web_search_failure_exits_cleanly(
+    monkeypatch,
+    fake_graph,
+    capsys,
+):
+    from graph.nodes.websearch import WebSearchError
+
+    monkeypatch.setattr(
+        main_module,
+        "load_dotenv",
+        Mock(),
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+
+    fake_graph.invoke.side_effect = WebSearchError(
+        "Web search is unavailable. Please try again."
+    )
+
+    with pytest.raises(SystemExit) as error:
+        main_module.main(["What is agent memory?"])
+
+    assert str(error.value) == (
+        "Service error: Web search is unavailable. Please try again."
+    )
+
+    fake_graph.invoke.assert_called_once_with(
+        input={"question": "What is agent memory?"}
+    )
+
+    assert "Final Output:" not in capsys.readouterr().out

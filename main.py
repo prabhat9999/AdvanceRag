@@ -2,7 +2,7 @@ import argparse
 
 from dotenv import load_dotenv
 from openai import APITimeoutError
-
+from graph.nodes.websearch import WebSearchError
 from config import validate_environment
 
 
@@ -50,6 +50,8 @@ def main(argv=None):
             "Service error: the model request timed out. "
             "Please try again."
         ) from None
+    except WebSearchError as exc:
+        raise SystemExit(f"Service error: {exc}") from None
 
     print("Final Output:", result["generation"])
 

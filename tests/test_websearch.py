@@ -1,6 +1,6 @@
 import importlib
 from unittest.mock import Mock
-
+import pytest
 from langchain_core.documents import Document
 
 
@@ -115,3 +115,36 @@ def test_empty_search_preserves_existing_evidence(monkeypatch):
     fake_tool.invoke.assert_called_once_with(
         {"query": state["question"]}
     )
+
+def test_search_error_is_reported_clearly(monkeypatch):
+    from requests.exceptions import Timeout
+
+    module = importlib.import_module("graph.nodes.websearch")
+
+    fake_tool = Mock()
+    fake_tool.invoke.return_value = {
+        "error": Timeout("Search request timed out.")
+    }
+
+    monkeypatch.setattr(
+        module,
+        "get_web_search_tool",
+        lambda: fake_tool,
+    )
+
+    document = Document(page_content="Existing evidence.")
+    state = {
+        "question": "What is agent memory?",
+        "documents": [document],
+    }
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"^Web search is unavailable\. Please try again\.$",
+    ):
+        module.web_search(state)
+
+    fake_tool.invoke.assert_called_once_with(
+        {"query": state["question"]}
+    )
+    assert state["documents"] == [document]

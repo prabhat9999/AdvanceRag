@@ -7,6 +7,10 @@ from langchain_tavily import TavilySearch
 from graph.state import GraphState
 
 
+class WebSearchError(RuntimeError):
+    """Raised when the web-search service cannot complete a request."""
+
+
 @lru_cache(maxsize=1)
 def get_web_search_tool() -> TavilySearch:
     """Create the search client on first use and reuse it."""
@@ -23,8 +27,13 @@ def web_search(state: GraphState) -> dict[str, Any]:
     existing_documents = state.get("documents") or []
 
     response = get_web_search_tool().invoke({"query": question})
-    results = response["results"]
 
+    if "error" in response:
+        raise WebSearchError(
+            "Web search is unavailable. Please try again."
+        )
+
+    results = response["results"]
     new_documents = []
 
     if results:

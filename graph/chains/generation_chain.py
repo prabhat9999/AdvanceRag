@@ -16,6 +16,8 @@ def get_generation_chain() -> RunnableSequence:
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
+        timeout=30.0,
+        max_retries=1,
     )
 
     prompt = ChatPromptTemplate.from_messages(

@@ -25,8 +25,10 @@ class RouteQuery(BaseModel):
 def get_question_router() -> RunnableSequence:
     """Build the question router on first use and reuse it."""
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+   model="gpt-4o-mini",
         temperature=0,
+        timeout=30.0,
+        max_retries=1,
     )
 
     structured_llm_router = llm.with_structured_output(RouteQuery)
