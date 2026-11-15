@@ -99,3 +99,24 @@ def test_mixed_batch_adds_only_new_chunk():
         ids=[make_chunk_id(new_chunk)],
     )
     #uv run python -m pytest tests/test_ingestion.py -q
+
+
+def test_duplicate_chunks_in_batch_are_added_once():
+    chunk = Document(
+        page_content="Agents can divide tasks into smaller steps.",
+        metadata={"source": "https://example.com/agents"},
+    )
+
+    fake_store = Mock(spec_set=["get", "add_documents"])
+    fake_store.get.return_value = {"ids": []}
+
+    result = store_documents(
+        [chunk, chunk],
+        vectorstore=fake_store,
+    )
+
+    fake_store.add_documents.assert_called_once_with(
+        documents=[chunk],
+        ids=[make_chunk_id(chunk)],
+    )
+    assert result is fake_store

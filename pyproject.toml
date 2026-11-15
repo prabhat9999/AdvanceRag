@@ -25,3 +25,9 @@ dependencies = [
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: tests requiring real external services and credentials",
+]

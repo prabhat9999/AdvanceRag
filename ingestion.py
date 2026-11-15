@@ -5,7 +5,6 @@ from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 import hashlib
 import json
-load_dotenv()
 COLLECTION_NAME="rag-chroma-v2"
 
 
@@ -83,22 +82,6 @@ def store_documents(chunks,vectorstore=None):
     print(f"Added {len(new_ids)} new chunks.")
     print(f"Skipped {len(unique_chunks) - len(new_ids)} existing chunks.")
 
-    """Save chunks using repeatable IDs."""
-
-    unique_chunks = {}
-
-    for chunk in chunks:
-        chunk_id = make_chunk_id(chunk)
-        unique_chunks[chunk_id] = chunk
-
-    vectorstore = Chroma.from_documents(
-        documents=list(unique_chunks.values()),
-        ids=list(unique_chunks.keys()),
-        collection_name=COLLECTION_NAME,
-        embedding=OpenAIEmbeddings(),
-        persist_directory="./.chroma",
-    )
-
     return vectorstore
 def get_retriever():
     """Open the stored collection and return a retriever."""
@@ -111,6 +94,7 @@ def get_retriever():
 
     return vectorstore.as_retriever()
 if __name__ == "__main__":
+    load_dotenv()
     chunks = load_and_split_documents()
     print(f"Created {len(chunks)} chunks.")
     vectorstore = store_documents(chunks)

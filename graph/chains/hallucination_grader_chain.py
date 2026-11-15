@@ -1,28 +1,64 @@
+from functools import lru_cache
+
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
-from langchain_core.runnables import RunnableSequence
+from langchain_core.runnables import (
+    RunnableConfig,
+    RunnableLambda,
+    RunnableSequence,
+)
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
-load_dotenv()
-llm = ChatOpenAI(temperature=0)
+from pydantic import BaseModel, Field
+
 
 class GradeHallucinations(BaseModel):
-    """Binary score for hallucination present in generation answer."""
+    """Whether an answer is supported by the supplied evidence."""
 
     binary_score: bool = Field(
-        description="True if the generated answer is supported by "
+        description=(
+            "True if the generated answer is supported by "
             "the retrieved documents; otherwise False."
+        )
+    )
+
+
+@lru_cache(maxsize=1)
+def get_hallucination_grader() -> RunnableSequence:
+    """Build the chain on first use and reuse it afterward."""
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0,
+    )
+
+    structured_llm_grader = llm.with_structured_output(
+        GradeHallucinations
+    )
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Assess whether the generated answer is supported by "
+                "the supplied facts. Return True when supported "
+                "and False otherwise.",
+            ),
+            (
+                "human",
+                "Facts:\n{documents}\n\n"
+                "Generated answer:\n{generation}",
+            ),
+        ]
+    )
+
+    return prompt | structured_llm_grader
+
+
+def _invoke_hallucination_grader(
+    inputs: dict,
+    config: RunnableConfig,
+):
+    return get_hallucination_grader().invoke(inputs, config=config)
+
+
+hallucination_grader = RunnableLambda(
+    _invoke_hallucination_grader
 )
-
-
-structured_llm_grader = llm.with_structured_output(GradeHallucinations)
-
-system = """You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts. \n 
-     Give a binary score True or False. True means that the answer is grounded in / supported by the set of facts."""
-hallucination_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system),
-        ("human", "Set of facts: \n\n {documents} \n\n LLM generation: {generation}"),
-    ]
-)
-hallucination_grader= hallucination_prompt | structured_llm_grader

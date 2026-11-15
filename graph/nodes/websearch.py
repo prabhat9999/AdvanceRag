@@ -1,45 +1,55 @@
-from typing import Any, Dict, List
+from functools import lru_cache
+from typing import Any
+
 from langchain_core.documents import Document
 from langchain_tavily import TavilySearch
+
 from graph.state import GraphState
-from dotenv import load_dotenv
-
-load_dotenv()
-
-web_search_tool = TavilySearch(max_results=3, search_type="web", search_engine="google")
 
 
-def web_search(state: GraphState) -> Dict[str, Any]:
-    print("---WEB SEARCH---")
-    question = state["question"]
-    documents = state.get("documents") or []
-
-    tavily_response = web_search_tool.invoke({"query": question})
-
-    tavily_results = tavily_response["results"]
-    joined_tavily_result = "\n".join(
-        [tavily_result["content"] for tavily_result in tavily_results]
+@lru_cache(maxsize=1)
+def get_web_search_tool() -> TavilySearch:
+    """Create the search client on first use and reuse it."""
+    return TavilySearch(
+        max_results=3,
+        search_type="web",
+        search_engine="google",
     )
-    web_results = Document(page_content=joined_tavily_result)
-    if documents is not None:
-        documents.append(web_results)
-    else:
-        documents = [web_results]
-    return {"documents": documents, "question": question}
+
+
+def web_search(state: GraphState) -> dict[str, Any]:
+    """Search the web and return documents without mutating input state."""
+    question = state["question"]
+    existing_documents = state.get("documents") or []
+
+    response = get_web_search_tool().invoke({"query": question})
+    results = response["results"]
+
+    new_documents = []
+
+    if results:
+        combined_content = "\n".join(
+            result["content"] for result in results
+        )
+        new_documents.append(
+            Document(page_content=combined_content)
+        )
+
+    return {
+        "documents": [*existing_documents, *new_documents],
+        "question": question,
+    }
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     result = web_search(
-        state={
+        {
             "question": "agent memory",
-            "generation": "",
-            "web_search": True,
-            "documents": []
+            "documents": [],
         }
     )
-
     print(result)
-
-
-
-
