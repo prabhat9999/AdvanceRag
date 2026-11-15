@@ -112,3 +112,41 @@ def test_valid_configuration_runs_graph(
         "Final Output: Agent memory stores information."
         in output
     )
+
+def test_model_timeout_exits_cleanly(
+    monkeypatch,
+    fake_graph,
+    capsys,
+):
+    from httpx import Request
+    from openai import APITimeoutError
+
+    monkeypatch.setattr(
+        main_module,
+        "load_dotenv",
+        Mock(),
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("TAVILY_API_KEY", "test-tavily-key")
+
+    request = Request(
+        "POST",
+        "https://example.test/chat/completions",
+    )
+    fake_graph.invoke.side_effect = APITimeoutError(
+        request=request
+    )
+
+    with pytest.raises(SystemExit) as error:
+        main_module.main(["What is agent memory?"])
+
+    assert str(error.value) == (
+        "Service error: the model request timed out. "
+        "Please try again."
+    )
+
+    fake_graph.invoke.assert_called_once_with(
+        input={"question": "What is agent memory?"}
+    )
+
+    assert "Final Output:" not in capsys.readouterr().out

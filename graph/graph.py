@@ -7,14 +7,18 @@ from graph.chains.hallucination_grader_chain import hallucination_grader
 from graph.chains.router_chain import RouteQuery, question_router
 from graph.consts import GENERATE, GRADE_DOCUMENTS, RETRIEVE, WEBSEARCH
 from graph.nodes import generate, grade_documents, retrieve, web_search
+from graph.routing import (
+    decide_after_rejection,
+    decide_after_web_search,
+    decide_to_generate,
+)
 from graph.state import GraphState
-from graph.routing import decide_after_rejection, decide_to_generate
+
 
 def grade_generation_grounded_in_documents_and_question(
     state: GraphState,
 ) -> Literal["useful", "not useful", "not supported"]:
     """Check whether the answer is grounded and addresses the question."""
-
     if "documents" not in state:
         raise ValueError(
             "Documents must be present before grading the generated answer."
@@ -64,7 +68,6 @@ def route_question(
     state: GraphState,
 ) -> Literal["websearch", "retrieve"]:
     """Choose public web search or document retrieval."""
-
     print("---ROUTE QUESTION---")
 
     source: RouteQuery = question_router.invoke(
@@ -85,13 +88,14 @@ def route_question(
 
 
 def insufficient_evidence(state: GraphState) -> dict[str, str]:
-    """Return a clear response after generation attempts are exhausted."""
+    """Return a clear response when evidence cannot support an answer."""
     return {
         "generation": (
             "I couldn't produce a supported answer from the available "
             "evidence. Please refine your question or provide more sources."
         )
     }
+
 
 def decide_after_generation(
     state: GraphState,
@@ -104,44 +108,57 @@ def decide_after_generation(
 
     return decide_after_rejection(state)
 
+
 def build_graph():
     workflow = StateGraph(GraphState)
+
     workflow.add_node("insufficient_evidence", insufficient_evidence)
     workflow.add_node(RETRIEVE, retrieve)
     workflow.add_node(GRADE_DOCUMENTS, grade_documents)
     workflow.add_node(GENERATE, generate)
     workflow.add_node(WEBSEARCH, web_search)
+
     workflow.set_conditional_entry_point(
-    route_question,
-    {
-        WEBSEARCH: WEBSEARCH,
-        RETRIEVE: RETRIEVE,
-    },
-)
+        route_question,
+        {
+            WEBSEARCH: WEBSEARCH,
+            RETRIEVE: RETRIEVE,
+        },
+    )
 
     workflow.add_edge(RETRIEVE, GRADE_DOCUMENTS)
 
     workflow.add_conditional_edges(
-    GRADE_DOCUMENTS,
-    decide_to_generate,
-    {
-        WEBSEARCH: WEBSEARCH,
-        GENERATE: GENERATE,
-    },
-)
-
-    workflow.add_edge(WEBSEARCH, GENERATE)
+        GRADE_DOCUMENTS,
+        decide_to_generate,
+        {
+            WEBSEARCH: WEBSEARCH,
+            GENERATE: GENERATE,
+        },
+    )
 
     workflow.add_conditional_edges(
-    GENERATE,
-    decide_after_generation,
-    {
-        "useful": END,
-        "retrieve": RETRIEVE,
-        "insufficient_evidence": "insufficient_evidence",
-    },
-)
+        WEBSEARCH,
+        decide_after_web_search,
+        {
+            GENERATE: GENERATE,
+            "insufficient_evidence": "insufficient_evidence",
+        },
+    )
+
+    workflow.add_conditional_edges(
+        GENERATE,
+        decide_after_generation,
+        {
+            "useful": END,
+            "retrieve": RETRIEVE,
+            "insufficient_evidence": "insufficient_evidence",
+        },
+    )
 
     workflow.add_edge("insufficient_evidence", END)
+
     return workflow.compile()
+
+
 app = build_graph()

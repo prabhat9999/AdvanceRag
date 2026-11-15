@@ -1,6 +1,7 @@
 import argparse
 
 from dotenv import load_dotenv
+from openai import APITimeoutError
 
 from config import validate_environment
 
@@ -40,9 +41,15 @@ def main(argv=None):
 
     print("Advanced RAG")
 
-    result = app.invoke(
-        input={"question": args.question.strip()}
-    )
+    try:
+        result = app.invoke(
+            input={"question": args.question.strip()}
+        )
+    except APITimeoutError:
+        raise SystemExit(
+            "Service error: the model request timed out. "
+            "Please try again."
+        ) from None
 
     print("Final Output:", result["generation"])
 

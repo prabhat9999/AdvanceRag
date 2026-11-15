@@ -2,7 +2,6 @@ from typing import Literal
 
 from graph.state import GraphState
 
-
 MAX_GENERATION_ATTEMPTS = 2
 
 
@@ -10,7 +9,6 @@ def decide_to_generate(
     state: GraphState,
 ) -> Literal["websearch", "generate"]:
     """Choose the next step after document grading."""
-
     if "web_search" not in state:
         raise ValueError(
             "Document grading must set web_search before routing."
@@ -22,11 +20,25 @@ def decide_to_generate(
     return "generate"
 
 
+def decide_after_web_search(
+    state: GraphState,
+) -> Literal["generate", "insufficient_evidence"]:
+    """Generate only when documents remain after web search."""
+    if "documents" not in state:
+        raise ValueError(
+            "Web search must set documents before routing."
+        )
+
+    if state["documents"]:
+        return "generate"
+
+    return "insufficient_evidence"
+
+
 def decide_after_rejection(
     state: GraphState,
 ) -> Literal["retrieve", "insufficient_evidence"]:
     """Retry a rejected answer only while attempts remain."""
-
     if "generation_attempts" not in state:
         raise ValueError(
             "Generation attempts must be tracked before retry routing."

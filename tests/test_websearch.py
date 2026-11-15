@@ -81,3 +81,37 @@ def test_web_search_client_is_created_once(monkeypatch):
         assert second is first
     finally:
         module.get_web_search_tool.cache_clear()
+
+def test_empty_search_preserves_existing_evidence(monkeypatch):
+    from graph.routing import decide_after_web_search
+
+    module = importlib.import_module("graph.nodes.websearch")
+
+    document = Document(page_content="Existing evidence.")
+    original_documents = [document]
+
+    fake_tool = Mock()
+    fake_tool.invoke.return_value = {"results": []}
+
+    monkeypatch.setattr(
+        module, "get_web_search_tool", lambda: fake_tool
+    )
+
+    state = {
+        "question": "What is agent memory?",
+        "documents": original_documents,
+    }
+
+    update = module.web_search(state)
+    next_step = decide_after_web_search({**state, **update})
+
+    assert update["question"] == state["question"]
+    assert update["documents"] == [document]
+    assert update["documents"][0] is document
+    assert update["documents"] is not original_documents
+    assert original_documents == [document]
+    assert next_step == "generate"
+
+    fake_tool.invoke.assert_called_once_with(
+        {"query": state["question"]}
+    )

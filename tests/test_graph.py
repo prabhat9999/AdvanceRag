@@ -186,3 +186,70 @@ def test_graph_respects_attempt_limit(
     assert fake_answer_grader.invoke.call_count == sum(
         grounding_results
     )
+
+def test_empty_web_search_finishes_without_generation(monkeypatch):
+    graph_module = importlib.import_module("graph.graph")
+    websearch_module = importlib.import_module(
+        "graph.nodes.websearch"
+    )
+    generation_module = importlib.import_module(
+        "graph.nodes.generate"
+    )
+
+    fake_router = Mock()
+    fake_router.invoke.return_value = SimpleNamespace(
+        datasource="websearch"
+    )
+    monkeypatch.setattr(
+        graph_module, "question_router", fake_router
+    )
+
+    fake_search = Mock()
+    fake_search.invoke.return_value = {"results": []}
+    monkeypatch.setattr(
+        websearch_module,
+        "get_web_search_tool",
+        lambda: fake_search,
+    )
+
+    fake_generation = Mock()
+    fake_generation.invoke.return_value = (
+        "An answer generated without evidence."
+    )
+    monkeypatch.setattr(
+        generation_module,
+        "generation_chain",
+        fake_generation,
+    )
+
+    fake_grounding = Mock()
+    fake_grounding.invoke.return_value = SimpleNamespace(
+        binary_score=True
+    )
+    monkeypatch.setattr(
+        graph_module, "hallucination_grader", fake_grounding
+    )
+
+    fake_answer = Mock()
+    fake_answer.invoke.return_value = SimpleNamespace(
+        binary_score=True
+    )
+    monkeypatch.setattr(
+        graph_module, "answer_grader", fake_answer
+    )
+
+    app = graph_module.build_graph()
+    result = app.invoke(
+        {"question": "A question with no search results"},
+        config={"recursion_limit": 15},
+    )
+
+    assert "couldn't produce a supported answer" in result["generation"]
+    assert result["documents"] == []
+
+    fake_search.invoke.assert_called_once_with(
+        {"query": "A question with no search results"}
+    )
+    fake_generation.invoke.assert_not_called()
+    fake_grounding.invoke.assert_not_called()
+    fake_answer.invoke.assert_not_called()
